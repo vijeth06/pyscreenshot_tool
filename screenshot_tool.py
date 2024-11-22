@@ -1,10 +1,16 @@
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
-from PIL import Image
+from PIL import ImageGrab, Image
 import os
 from datetime import datetime
-import pyscreenshot as ImageGrab
+import time
+
+
+def sanitize_filename(filename):
+    """Sanitize filename by removing invalid characters."""
+    import re
+    return re.sub(r'[\\/*?:"<>|]', "", filename)
 
 
 def capture_full_screen(save_path):
@@ -14,6 +20,7 @@ def capture_full_screen(save_path):
     print(f"Screenshot saved as {save_path}")
     return screenshot
 
+
 def capture_region(save_path, bbox):
     """Captures a specific region of the screen and saves the screenshot."""
     screenshot = ImageGrab.grab(bbox=bbox)
@@ -21,14 +28,14 @@ def capture_region(save_path, bbox):
     print(f"Screenshot of region {bbox} saved as {save_path}")
     return screenshot
 
+
 def get_save_path(custom_name=None):
     """Generates a filename for the screenshot."""
     if not custom_name:
         filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     else:
-        filename = f"{custom_name}.png"
-    save_path = os.path.join(os.getcwd(), filename)
-    return save_path
+        filename = sanitize_filename(f"{custom_name}.png")
+    return os.path.join(os.getcwd(), filename)
 
 
 class ScreenshotApp:
@@ -36,26 +43,21 @@ class ScreenshotApp:
         self.root = root
         self.root.title("Screenshot Capture Tool")
         self.root.geometry("500x450")
-        self.root.resizable(True, True)  
+        self.root.resizable(True, True)
 
-       
         self.style = ttk.Style()
-        self.style.theme_use('clam')  
-        
+        self.style.theme_use('clam')
         self.style.configure('GreenButton.TButton', font=('Arial', 10, 'bold'), foreground='white', background='#4CAF50', borderwidth=1)
-        self.style.map('GreenButton.TButton', background=[('active', '#388E3C')])  
-
+        self.style.map('GreenButton.TButton', background=[('active', '#388E3C')])
         self.style.configure('Quit.TButton', font=('Arial', 10, 'bold'), foreground='white', background='red', borderwidth=1)
-        self.style.map('Quit.TButton', background=[('active', '#B71C1C')])  
-
+        self.style.map('Quit.TButton', background=[('active', '#B71C1C')])
         self.style.configure('ConfirmButton.TButton', font=('Arial', 10, 'bold'), foreground='white', background='#FF9800', borderwidth=1)
-        self.style.map('ConfirmButton.TButton', background=[('active', '#F57C00')])  
+        self.style.map('ConfirmButton.TButton', background=[('active', '#F57C00')])
 
-        self.root.configure(bg='#e0e0e0')  
+        self.root.configure(bg='#e0e0e0')
 
         self.custom_name = tk.StringVar()
 
-       
         self.title_label = ttk.Label(root, text="Screenshot Capture Tool", font=("Arial", 20, "bold"), background='#e0e0e0', foreground='#37474F')
         self.title_label.pack(pady=15)
 
@@ -77,66 +79,82 @@ class ScreenshotApp:
         self.quit_button.pack(pady=15)
 
         self.last_screenshot_path = None
+        self.selection_box = None
 
     def capture_full_screen_gui(self):
         """Handles full screen capture through the GUI."""
-        save_path = get_save_path(self.custom_name.get().strip())
-        capture_full_screen(save_path)
-        self.last_screenshot_path = save_path
-        messagebox.showinfo("Screenshot Saved", f"Full screen screenshot saved as {save_path}")
-        self.update_view_button()  
+        try:
+            self.root.withdraw() 
+            time.sleep(0.5)  
+            save_path = get_save_path(self.custom_name.get().strip())
+            capture_full_screen(save_path)
+            self.root.deiconify()  
+            self.last_screenshot_path = save_path
+            messagebox.showinfo("Screenshot Saved", f"Full screen screenshot saved as {save_path}")
+            self.update_view_button()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to capture screenshot: {e}")
+            self.root.deiconify()
 
     def capture_region_gui(self):
-        """Handles region capture through the GUI."""
+        """Handles region capture through the GUI using mouse drag."""
         try:
-            coord_window = tk.Toplevel(self.root)
-            coord_window.title("Enter Region Coordinates")
-            coord_window.geometry("350x400")
-            coord_window.resizable(False, False)
-            coord_window.configure(bg='#f5f5f5')
-
-            coord_vars = {
-                "left": tk.IntVar(),
-                "top": tk.IntVar(),
-                "right": tk.IntVar(),
-                "bottom": tk.IntVar(),
-            }
-
-            ttk.Label(coord_window, text="Left:", background='#f5f5f5').pack(pady=5)
-            ttk.Entry(coord_window, textvariable=coord_vars["left"]).pack(pady=5)
-            ttk.Label(coord_window, text="Top:", background='#f5f5f5').pack(pady=5)
-            ttk.Entry(coord_window, textvariable=coord_vars["top"]).pack(pady=5)
-            ttk.Label(coord_window, text="Right:", background='#f5f5f5').pack(pady=5)
-            ttk.Entry(coord_window, textvariable=coord_vars["right"]).pack(pady=5)
-            ttk.Label(coord_window, text="Bottom:", background='#f5f5f5').pack(pady=5)
-            ttk.Entry(coord_window, textvariable=coord_vars["bottom"]).pack(pady=5)
-
-            def on_confirm():
-                try:
-                    left = coord_vars["left"].get()
-                    top = coord_vars["top"].get()
-                    right = coord_vars["right"].get()
-                    bottom = coord_vars["bottom"].get()
-
-                    if right <= left or bottom <= top:
-                        messagebox.showerror("Error", "Invalid coordinates. Please enter valid values.")
-                        return
-
-                    bbox = (left, top, right, bottom)
-                    save_path = get_save_path(self.custom_name.get().strip())
-                    capture_region(save_path, bbox)
-                    self.last_screenshot_path = save_path
-                    messagebox.showinfo("Screenshot Saved", f"Region screenshot saved as {save_path}")
-                    self.update_view_button()  
-                    coord_window.destroy()  
-                except ValueError:
-                    messagebox.showerror("Error", "Please enter numeric values.")
-
-            confirm_button = ttk.Button(coord_window, text="Confirm", command=on_confirm, style='ConfirmButton.TButton')
-            confirm_button.pack(pady=20)
-        
+            self.root.withdraw()  
+            self.root.after(500, self.start_capture_region)
         except Exception as e:
             messagebox.showerror("Error", str(e))
+            self.root.deiconify()
+
+    def start_capture_region(self):
+        """Starts the region capture using a transparent overlay."""
+        self.selection_box = None
+        self.capture_window = tk.Toplevel(self.root)
+        self.capture_window.geometry(f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}")
+        self.capture_window.attributes("-topmost", True)
+        self.capture_window.overrideredirect(True)
+        self.capture_window.attributes("-alpha", 0.3)  
+        self.capture_window.configure(bg='black')
+
+        self.canvas = tk.Canvas(self.capture_window, cursor="cross", bg='black', bd=0)
+        self.canvas.pack(fill="both", expand=True)
+
+        self.canvas.bind("<ButtonPress-1>", self.on_press)
+        self.canvas.bind("<B1-Motion>", self.on_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.on_release)
+
+    def on_press(self, event):
+        """Handles mouse press to start selecting region."""
+        self.start_x = event.x
+        self.start_y = event.y
+        self.selection_box = self.canvas.create_rectangle(self.start_x, self.start_y, self.start_x, self.start_y, outline="red", width=2)
+
+    def on_drag(self, event):
+        """Handles mouse drag to resize the selection rectangle."""
+        self.canvas.coords(self.selection_box, self.start_x, self.start_y, event.x, event.y)
+
+    def on_release(self, event):
+        """Handles mouse release to finalize region selection and capture screenshot."""
+        end_x = event.x
+        end_y = event.y
+        left = min(self.start_x, end_x)
+        top = min(self.start_y, end_y)
+        right = max(self.start_x, end_x)
+        bottom = max(self.start_y, end_y)
+
+        self.capture_window.destroy()  
+
+        if right <= left or bottom <= top:
+            messagebox.showerror("Error", "Invalid coordinates. Please select a valid region.")
+            self.root.deiconify()
+            return
+
+        save_path = get_save_path(self.custom_name.get().strip())
+        capture_region(save_path, (left, top, right, bottom))
+        self.last_screenshot_path = save_path
+        messagebox.showinfo("Screenshot Saved", f"Region screenshot saved as {save_path}")
+        self.update_view_button()
+
+        self.root.deiconify()  
 
     def view_screenshot_gui(self):
         """Displays the last captured screenshot if available."""
@@ -155,6 +173,7 @@ class ScreenshotApp:
             self.view_button.config(text="🖼️ View Last Screenshot")
         else:
             self.view_button.config(text="🖼️ No Screenshot to View")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
